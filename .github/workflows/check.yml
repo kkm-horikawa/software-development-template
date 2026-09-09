@@ -18,6 +18,6 @@ jobs:
           python-version: "3.12"
       - uses: actions/setup-go@v7
         with:
-          go-version-file: examples/go/topdown/go.mod
+          go-version-file: client/worklog-cli/go.mod
       - uses: astral-sh/setup-uv@v10.0.1
       - run: ./scripts/check-all.sh
