@@ -1,0 +1,12 @@
+.DS_Store
+*.tmp
+*.log
+.idea/
+.vscode/
+.venv/
+.pytest_cache/
+__pycache__/
+activities.sqlite3
+coverage/
+dist/
+bin/
