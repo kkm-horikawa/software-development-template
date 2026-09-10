@@ -31,8 +31,8 @@ GoのCLIへ `start "設計を書く"` を渡すと、作業開始の利用手順
 
 使い捨ての保存先でFastAPIを起動し、別プロセスのGo CLIへ正常な作業名と空の作業名を渡して、標準出力、標準エラー、終了状態を確認する。
 
-- 実行物: `tests/acceptance/sc_001/test_cli_start_activity.py::test_sc001_ex02_cli_reports_started_activity`
-- 実行物: `tests/acceptance/sc_001/test_cli_start_activity.py::test_sc001_ex04_cli_rejects_empty_title`
+- 実行物: `tests/acceptance/sc_001/test_cli_start_activity.py::test_cli_start_activity`
+- 実行物: `tests/acceptance/sc_001/test_cli_start_activity.py::test_cli_start_activity`
 
 ## 設計上の境界と確認
 

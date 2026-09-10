@@ -29,7 +29,7 @@ check-go-example:
     @echo 'Goクライアント実例: OK'
 
 check-platform-example:
-    @PYTHONPATH=backend/worklog-api/src uv run --project backend/worklog-api pytest tests/acceptance -q >/dev/null
+    @PYTHONPATH=backend/worklog-api/src uv run --project backend/worklog-api pytest tests -q >/dev/null
     @echo '受入テスト: OK'
 
 check-method-flow:

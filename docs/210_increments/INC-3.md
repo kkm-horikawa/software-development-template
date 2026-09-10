@@ -20,8 +20,8 @@ FastAPIを起動してGoのCLIへ `start "設計を書く"` を渡すと、CLI�
 
 使い捨ての保存先と空きポートでFastAPIを起動し、別のGoプロセスから作業開始を要求する。標準出力、標準エラー、終了状態を確認する。到達不能な接続先では成功を表示せず失敗することも確認する。
 
-- 実行物: `tests/acceptance/sc_001/test_cli_start_activity.py::test_sc001_ex02_cli_reports_started_activity`
-- 実行物: `tests/acceptance/sc_001/test_cli_start_activity.py::test_sc001_ex05_cli_reports_unreachable_backend`
+- 実行物: `tests/acceptance/sc_001/test_cli_start_activity.py::test_cli_start_activity`
+- 実行物: `tests/acceptance/sc_001/test_cli_start_activity.py::test_cli_start_activity`
 
 ## 設計上の境界と確認
 

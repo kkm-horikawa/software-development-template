@@ -24,7 +24,7 @@ echo 'バックエンド実例: OK'
 echo 'Goクライアント実例: OK'
 
 PYTHONPATH=backend/worklog-api/src uv run --project backend/worklog-api \
-  pytest tests/acceptance -q >/dev/null
+  pytest tests -q >/dev/null
 echo '受入テスト: OK'
 
 uv run --project backend/worklog-api pytest backend/worklog-api/tests/test_method_flow.py -q >/dev/null
