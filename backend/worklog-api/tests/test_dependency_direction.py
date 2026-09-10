@@ -10,18 +10,6 @@ ALLOWED_IMPORTS = {
 }
 
 
-def test_clean_architecture_dependencies_point_inward() -> None:
-    violations: list[str] = []
-    for source in SOURCE_ROOT.rglob("*.py"):
-        layer = source.relative_to(SOURCE_ROOT).parts[0]
-        if layer not in ALLOWED_IMPORTS:
-            continue
-        for imported_layer in worklog_imports(source):
-            if imported_layer not in ALLOWED_IMPORTS[layer]:
-                violations.append(f"{source.name}: {layer} -> {imported_layer}")
-    assert violations == []
-
-
 def worklog_imports(source: Path) -> set[str]:
     imported_layers: set[str] = set()
     tree = ast.parse(source.read_text())
@@ -38,3 +26,16 @@ def worklog_imports(source: Path) -> set[str]:
             if len(parts) > 1:
                 imported_layers.add(parts[1])
     return imported_layers
+
+
+class TestDependencyDirection:
+    def test_clean_architecture_dependencies_point_inward(self) -> None:
+        violations: list[str] = []
+        for source in SOURCE_ROOT.rglob("*.py"):
+            layer = source.relative_to(SOURCE_ROOT).parts[0]
+            if layer not in ALLOWED_IMPORTS:
+                continue
+            for imported_layer in worklog_imports(source):
+                if imported_layer not in ALLOWED_IMPORTS[layer]:
+                    violations.append(f"{source.name}: {layer} -> {imported_layer}")
+        assert violations == []

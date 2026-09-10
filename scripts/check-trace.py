@@ -1,99 +1,143 @@
 #!/usr/bin/env python3
-"""要求から実在するシステム・結合テストまでの参照を検算する。"""
+"""現在の受入例と実行ケースを対応させる。過去の増分は採番だけ確かめる。"""
 
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SKIP_DIRECTORIES = {".git", ".pytest_cache", ".venv", "__pycache__"}
-DEFINITION = re.compile(r"^#{2,6}\s+((?:PB|SC|REQ|AC|SPEC|ST|AD|IT)-\d{3})\b")
-REFERENCE = re.compile(r"\[((?:PB|SC|REQ|AC|SPEC|ST|AD|IT)-\d{3})\]")
-EXPECTED_PARENT = {
-    "SC": "PB",
-    "REQ": "SC",
-    "AC": "REQ",
-    "SPEC": "AC",
-    "ST": "SPEC",
-    "AD": "SPEC",
-    "IT": "AD",
-}
 
 
-def trace_documents() -> list[Path]:
-    documents = [ROOT / "docs/100_requirements.md"]
-    documents.extend(
-        path
-        for path in sorted((ROOT / "docs/increments").glob("*.md"))
-        if not path.name.startswith("_") and path.name != "README.md"
-    )
-    return documents
+class TraceCheck:
+    ENTRY = re.compile(r"^\| (EX-SC\d{3}-\d{2}) \| [^|]+ \| `([^`]+)` \|$")
+    CASE = re.compile(r"\[(EX-SC\d{3}-\d{2})\]$")
+    ISSUE = re.compile(r"^対応Issue: #(\d+)\s*$", re.MULTILINE)
 
+    def __init__(self, root: Path = ROOT) -> None:
+        self.root = root
 
-def definitions() -> tuple[dict[str, tuple[Path, int, set[str]]], list[str]]:
-    found: dict[str, tuple[Path, int, set[str]]] = {}
-    failures: list[str] = []
-    for document in trace_documents():
-        for line_number, line in enumerate(
-            document.read_text(encoding="utf-8").splitlines(), 1
+    def run(self) -> list[str]:
+        entries, failures = self.read_entries()
+        failures.extend(self.check_increment_numbers())
+        if failures:
+            return failures
+        collected, errors = self.collect_tests()
+        return [*errors, *self.check_targets(entries, collected)]
+
+    def read_entries(self) -> tuple[dict[str, str], list[str]]:
+        entries: dict[str, str] = {}
+        failures: list[str] = []
+        for scenario in sorted(
+            (self.root / "docs/110_requirements/シナリオ").glob("SC-*")
         ):
-            match = DEFINITION.match(line)
-            if not match:
+            if not scenario.is_dir():
                 continue
-            identifier = match.group(1)
-            if identifier in found:
-                failures.append(f"{identifier} が二重に定義されています")
-                continue
-            found[identifier] = (document, line_number, set(REFERENCE.findall(line)))
-    return found, failures
+            number = scenario.name.split("-", 2)[1]
+            path = scenario / "受入例.md"
+            local_count = 0
+            for line in path.read_text(encoding="utf-8").splitlines():
+                match = self.ENTRY.match(line)
+                if match is None:
+                    if line.startswith("| EX-"):
+                        failures.append(
+                            f"{path.relative_to(self.root)}: 受入例の行形式が不正です"
+                        )
+                    continue
+                case_id, target = match.groups()
+                local_count += 1
+                if not case_id.startswith(f"EX-SC{number}-"):
+                    failures.append(f"{case_id}: シナリオの番号と一致しません")
+                if case_id in entries:
+                    failures.append(f"{case_id}: 受入例が重複しています")
+                entries[case_id] = target
+            if local_count == 0:
+                failures.append(f"{path.relative_to(self.root)}: 受入例がありません")
+        return entries, failures
 
+    def check_increment_numbers(self) -> list[str]:
+        failures: list[str] = []
+        for path in (self.root / "docs/210_increments").glob("INC-*.md"):
+            match = re.fullmatch(r"INC-(\d+)(?:-\d+)?", path.stem)
+            issue = self.ISSUE.search(path.read_text(encoding="utf-8"))
+            if match is None or issue is None or match.group(1) != issue.group(1):
+                failures.append(f"{path.name}: ファイル名と対応Issueが一致しません")
+        return failures
 
-def test_sources() -> str:
-    contents: list[str] = []
-    for pattern in ("**/test_*.py", "**/*_test.go"):
-        for path in ROOT.glob(pattern):
-            if not any(part in SKIP_DIRECTORIES for part in path.parts):
-                contents.append(path.read_text(encoding="utf-8"))
-    return "\n".join(contents)
+    def collect_tests(self) -> tuple[set[str], list[str]]:
+        result = subprocess.run(
+            [
+                "uv",
+                "run",
+                "--project",
+                "backend/worklog-api",
+                "python",
+                "-m",
+                "pytest",
+                "--rootdir=.",
+                "--collect-only",
+                "-q",
+                "backend/worklog-api/tests",
+                "tests",
+            ],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            return set(), [
+                "テストの収集に失敗しました:\n" + result.stdout + result.stderr
+            ]
+        return {
+            line.strip()
+            for line in result.stdout.splitlines()
+            if "::" in line and line.startswith(("backend/", "tests/"))
+        }, []
 
+    def check_targets(self, entries: dict[str, str], collected: set[str]) -> list[str]:
+        failures: list[str] = []
+        for case_id, target in entries.items():
+            if ".md::" in target:
+                if not self.manual_exists(case_id, target):
+                    failures.append(
+                        f"{case_id}: 手動確認書の見出しがありません: {target}"
+                    )
+            elif target not in collected or not target.endswith(f"[{case_id}]"):
+                failures.append(
+                    f"{case_id}: 実行できる個別ケースがありません: {target}"
+                )
+        for target in collected:
+            match = self.CASE.search(target)
+            if "/acceptance/" in target and match is None:
+                failures.append(f"受入テストにEXのケース名がありません: {target}")
+            if match is not None and entries.get(match.group(1)) != target:
+                failures.append(
+                    f"{match.group(1)}: 現在の受入例一覧に対応する実行物がありません"
+                )
+        return failures
 
-def main() -> int:
-    found, failures = definitions()
-    for identifier, (document, line_number, references) in found.items():
-        kind = identifier.split("-", 1)[0]
-        expected_parent = EXPECTED_PARENT.get(kind)
-        if expected_parent is None:
-            continue
-        parents = {
-            reference
-            for reference in references
-            if reference.startswith(expected_parent + "-")
-        }
-        if not parents:
-            failures.append(
-                f"{document.relative_to(ROOT)}:{line_number}: {identifier} から {expected_parent} への参照がありません"
+    def manual_exists(self, case_id: str, target: str) -> bool:
+        path_text, anchor = target.split("::", 1)
+        path = (self.root / path_text).resolve()
+        if not path.is_relative_to(self.root.resolve()) or not path.is_file():
+            return False
+        return (
+            anchor == case_id
+            and re.search(
+                rf"^#{{1,6}} {re.escape(anchor)}(?:\s|$)",
+                path.read_text(encoding="utf-8"),
+                re.MULTILINE,
             )
-            continue
-        for parent in parents:
-            if parent not in found:
-                failures.append(f"{identifier} が未定義の {parent} を参照しています")
-
-    sources = test_sources()
-    for identifier in found:
-        if not identifier.startswith(("ST-", "IT-")):
-            continue
-        marker = identifier.replace("-", "")
-        if re.search(re.escape(marker), sources, re.IGNORECASE) is None:
-            failures.append(f"{identifier} に対応する実在テストがありません")
-
-    if failures:
-        print("\n".join(failures), file=sys.stderr)
-        return 1
-    print("要求からテストの対応: OK")
-    return 0
+            is not None
+        )
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    failures = TraceCheck().run()
+    if failures:
+        print("\n".join(failures), file=sys.stderr)
+        raise SystemExit(1)
+    print("要求から受入例とテストの対応: OK")

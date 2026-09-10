@@ -8,19 +8,20 @@
 
 1. GitHubの「Use this template」から新しいリポジトリを作ります。
 2. このREADMEを、作る製品の説明へ書き換えます。
-3. [開発の進め方](docs/000_process.md)を読み、最初のIssueを書きます。
-4. [増分の雛形](docs/increments/_template.md)で設計とテストを対にします。
-5. 実装後に `just check` を実行し、Pull Requestで観測した結果を返します。
+3. 最初のIssueを書く前に、[要求のサンプル](docs/110_requirements/README.md)と[システムのサンプル](docs/150_system/README.md)の本文を削除し、製品の内容へすべて書き換えます。サンプルのシナリオ、シーケンス、増分は不要ならファイルごと削除します。
+4. [開発の進め方](docs/000_process.md)を読み、最初のIssueを書きます。
+5. Issue番号が決まってから、[増分の雛形](docs/210_increments/_template.md)で設計とテストを対にします。
+6. 実装後に `just check` を実行し、Pull Requestで観測した結果を返します。
 
 ```console
 $ just check
 文書の構造: OK
-要求からテストの対応: OK
+要求から受入例とテストの対応: OK
 機密らしい文字列: OK
 Python静的検査: OK
 バックエンド実例: OK
 Goクライアント実例: OK
-バックエンド・クライアント連携: OK
+受入テスト: OK
 トップダウン構造: OK
 ```
 
@@ -29,24 +30,29 @@ Goクライアント実例: OK
 ## このテンプレートが守ること
 
 - Issueは、作る部品ではなく、誰の何がどう変わればよいかを書く。
-- 一回の増分で、外から見える振る舞いとそのテスト、設計上の境界とそのテストを対にする。
+- 要求のシナリオとシステムの現在像を、増分をまたいで更新する正典として持つ。
+- 増分は今回の変更と設計理由を持つ。現在の振る舞いと具体値はシナリオ・テストデータを参照する。
+- 増分はIssue番号、シナリオはSC、個別ケースはEXで識別する。条件や設計の中間台帳を増やさない。
 - 機能単位で変更を閉じ込め、その内側で必要な分だけDDDとクリーンアーキテクチャを使う。
 - 配備できる単位を `backend/<サービス>` と `client/<製品>` に分け、内部実装ではなく公開契約でつなぐ。
 - 公開入口を実行できる目次にし、同じ粒度のメソッドを上から順に呼ぶ。
 - Pull Requestは予定ではなく、実際に入力して観測した結果を書く。
 
-詳しい判断基準は[設計原則](docs/010_design-principles.md)、コードの読み順は[実装構造](docs/020_code-structure.md)、確認方法は[テスト](docs/030_testing.md)にあります。
+製品が提供する体験は[要求の正典](docs/110_requirements/README.md)、それを実現する全体は[システムの現在像](docs/150_system/README.md)にあります。詳しい判断基準は[設計原則](docs/010_design-principles.md)、コードの読み順は[実装構造](docs/020_code-structure.md)、確認方法は[テスト](docs/030_testing.md)にあります。
 
 ## 構成
 
 ```text
-.github/                    Issue・Pull Request・自動検査
-docs/                       開発の正典、増分、決定記録
-backend/worklog-api/        FastAPIとSQLAlchemyのバックエンド実例
-client/worklog-cli/         Goで作ったCLIクライアント実例
-contracts/                  バックエンドとクライアントの公開契約
-scripts/                    ローカルとCIで共有する検査
-AGENTS.md                   AIと人が最初に読む作業規則
+.github/                     Issue・Pull Request・自動検査
+docs/110_requirements/       課題、利用者、目的ごとのシナリオ、受入例、要求
+docs/150_system/             全体構造、シナリオごとのシーケンス、データ構造
+docs/210_increments/         Issue一件で届ける変更の設計とテスト
+backend/worklog-api/         FastAPIとSQLAlchemyのバックエンド実例
+client/worklog-cli/          Goで作ったCLIクライアント実例
+contracts/                   バックエンドとクライアントの公開契約
+tests/acceptance/             利用者の入口からSCの受入例を確かめるテスト
+scripts/                     ローカルとCIで共有する検査
+AGENTS.md                    AIと人が最初に読む作業規則
 ```
 
 `backend` の直下は独立して配備するサービス、`client` の直下はWeb、モバイル、CLIなど独立して配布する製品の単位です。それぞれが依存関係、起動方法、検査を自分の中に持ち、相手の内部コードを読み込みません。連携は `contracts` に公開したHTTP契約を使います。
