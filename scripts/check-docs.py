@@ -38,6 +38,7 @@ REQUIRED_FILES = (
     ".github/pull_request_template.md",
 )
 LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
+ISSUE_FORM_TITLE = re.compile(r"^title:\s*(.*)$", re.MULTILINE)
 
 
 def missing_required_files() -> list[str]:
@@ -63,10 +64,27 @@ def broken_links() -> list[str]:
     return broken
 
 
+def invalid_issue_form_titles() -> list[str]:
+    invalid: list[str] = []
+    forms = ROOT / ".github/ISSUE_TEMPLATE"
+    for form in sorted(forms.glob("*.yml")):
+        if form.name == "config.yml":
+            continue
+        match = ISSUE_FORM_TITLE.search(form.read_text(encoding="utf-8"))
+        title = match.group(1).strip().strip("\"'") if match else ""
+        if not title:
+            invalid.append(str(form.relative_to(ROOT)))
+    return invalid
+
+
 def main() -> int:
     failures = [
         *(f"必要なファイルがありません: {name}" for name in missing_required_files()),
         *(f"リンク先がありません: {link}" for link in broken_links()),
+        *(
+            f"Issueフォームのtitleが空です: {form}"
+            for form in invalid_issue_form_titles()
+        ),
     ]
     if failures:
         print("\n".join(failures), file=sys.stderr)
