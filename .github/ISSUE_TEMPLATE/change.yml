@@ -1,6 +1,6 @@
 name: 変更を提案する
 description: 困りごとと期待する体験から変更を始める
-title: ""
+title: "[変更]: "
 labels: []
 body:
   - type: textarea
