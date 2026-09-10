@@ -8,7 +8,7 @@ from worklog.adapters.database.models import Base
 from worklog.application.start_activity import StartActivity
 
 
-def test_it_1_01_usecase_saves_activity_through_sqlalchemy(engine: Engine) -> None:
+def test_start_activity_persists_through_sqlalchemy(engine: Engine) -> None:
     Base.metadata.create_all(engine)
     repository = SQLAlchemyActivityRepository(sessionmaker(engine))
     start_activity = StartActivity(

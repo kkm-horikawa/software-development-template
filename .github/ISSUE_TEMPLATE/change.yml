@@ -42,7 +42,7 @@ body:
     id: current_view
     attributes:
       label: 更新する現在像
-      description: requirementsのシナリオ・要求・受入基準と、systemの全体構造・シーケンス・データ構造のうち、変わるものを書いてください。変わらないものは理由を書いてください。
+      description: requirementsのシナリオ・要求・受入例・横断的な受入条件と、systemの全体構造・シーケンス・データ構造のうち、変わるものを書いてください。変わらないものは理由を書いてください。
     validations:
       required: true
   - type: textarea

@@ -12,7 +12,7 @@ import (
 	"example.com/worklog-cli/internal/domain/work"
 )
 
-func TestIT_3_01_GatewayStartsActivityThroughHTTPContract(t *testing.T) {
+func TestActivityGatewayStartsActivityThroughHTTPContract(t *testing.T) {
 	var receivedBody string
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		body, err := io.ReadAll(request.Body)

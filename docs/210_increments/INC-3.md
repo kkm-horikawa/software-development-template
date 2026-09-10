@@ -2,7 +2,7 @@
 
 対応Issue: #3
 対応シナリオ: SC-001
-対応要求: REQ-001、AC-002
+対応要求: REQ-001、AC-SC001-01、AC-SC001-03
 
 > 作業記録アプリのサンプル増分です。新しい製品では最初のIssueへ着手する前に削除してください。
 
@@ -12,13 +12,16 @@
 
 ## 外から見える振る舞いと確認
 
-### SPEC-3-01: Goクライアントからバックエンドへ作業開始を依頼する [AC-002]
+### SPEC-3-01: Goクライアントからバックエンドへ作業開始を依頼する [AC-SC001-01] [AC-SC001-03]
 
 FastAPIを起動してGoのCLIへ `start "設計を書く"` を渡すと、CLIは `開始: 設計を書く` と表示し、バックエンドのSQLiteへ一件保存する。
 
 ### ST-3-01: 異なる実行単位をHTTPでつないで確認する [SPEC-3-01]
 
-使い捨てのSQLiteと空きポートでFastAPIを起動し、別のGoプロセスから作業開始を要求する。CLIの表示とSQLAlchemyの保存件数を確認する。実在するテスト名は `test_st_3_01_go_client_starts_activity_through_fastapi`。
+使い捨ての保存先と空きポートでFastAPIを起動し、別のGoプロセスから作業開始を要求する。標準出力、標準エラー、終了状態を確認する。到達不能な接続先では成功を表示せず失敗することも確認する。
+
+- 実行物: `tests/acceptance/sc_001/test_cli_start_activity.py::test_sc001_ex02_cli_reports_started_activity`
+- 実行物: `tests/acceptance/sc_001/test_cli_start_activity.py::test_sc001_ex05_cli_reports_unreachable_backend`
 
 ## 設計上の境界と確認
 
@@ -28,7 +31,9 @@ FastAPIとSQLAlchemyは `backend/worklog-api`、GoのCLIは `client/worklog-cli`
 
 ### IT-3-01: GoのHTTPアダプタと公開する要求・応答を確認する [AD-3-01]
 
-実際のHTTPサーバーへGoのアダプタから要求し、JSONの入力と、識別子、作業名、開始時刻を持つ応答を確認する。実在するテスト名は `TestIT_3_01_GatewayStartsActivityThroughHTTPContract`。
+実際のHTTPサーバーへGoのアダプタから要求し、JSONの入力と、識別子、作業名、開始時刻を持つ応答を確認する。
+
+- 実行物: `client/worklog-cli/internal/adapter/api/activity_gateway_test.go::TestActivityGatewayStartsActivityThroughHTTPContract`
 
 ### AD-3-02: 単位をまたぐHTTP契約を実装の外へ公開する [SPEC-3-01]
 
@@ -36,7 +41,9 @@ FastAPIとSQLAlchemyは `backend/worklog-api`、GoのCLIは `client/worklog-cli`
 
 ### IT-3-02: 公開した契約とFastAPIの実物を一致させる [AD-3-02]
 
-FastAPIが生成するOpenAPIと公開した契約を比較し、要求、応答、データの形がずれた時点で失敗させる。実在するテスト名は `test_it_3_02_published_openapi_matches_backend`。
+FastAPIが生成するOpenAPIと公開した契約を比較し、要求、応答、データの形がずれた時点で失敗させる。
+
+- 実行物: `backend/worklog-api/tests/test_contract.py::test_published_openapi_matches_backend`
 
 ## 実装の段
 
@@ -58,4 +65,4 @@ Go ActivityGateway.Start
 
 ## 現在像の更新先
 
-`110_requirements` のSC-001にGo CLIの入口別経路と例外を足し、REQ-001、AC-002を更新する。`150_system` の全体構造、SC-001のGo CLIシーケンス、データ所有の説明を更新する。作業そのものの保存形式は変わらないため、データの実体と不変条件は変更しない。
+`110_requirements` のSC-001にGo CLIの入口別経路、受入条件、具体例を足し、REQ-001を更新する。`150_system` の全体構造、SC-001のGo CLIシーケンス、データ所有の説明を更新する。作業そのものの保存形式は変わらないため、データの実体と不変条件は変更しない。

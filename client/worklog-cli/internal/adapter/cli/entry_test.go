@@ -11,7 +11,7 @@ import (
 	usecasework "example.com/worklog-cli/internal/usecase/work"
 )
 
-func TestST_1_02_EntryStartsWorkFromCommand(t *testing.T) {
+func TestCLIEntryStartsWorkFromCommand(t *testing.T) {
 	gateway := &activityGatewayStub{activity: work.RestoreActivity(
 		"11111111-1111-1111-1111-111111111111",
 		mustTitle(t, "設計を書く"),
@@ -32,12 +32,33 @@ func TestST_1_02_EntryStartsWorkFromCommand(t *testing.T) {
 	}
 }
 
+func TestCLIEntryRejectsEmptyTitleBeforeCallingGateway(t *testing.T) {
+	gateway := &activityGatewayStub{}
+	startWork := usecasework.NewStartWork(gateway)
+	var output bytes.Buffer
+	entry := cli.NewEntry([]string{"start", "   "}, &output, startWork)
+
+	err := entry.Run(context.Background())
+
+	if err == nil || err.Error() != "作業名を空にはできません" {
+		t.Fatalf("err = %v", err)
+	}
+	if output.String() != "" {
+		t.Fatalf("output = %q", output.String())
+	}
+	if gateway.calls != 0 {
+		t.Fatalf("gateway calls = %d", gateway.calls)
+	}
+}
+
 type activityGatewayStub struct {
 	activity      work.Activity
 	receivedTitle work.Title
+	calls         int
 }
 
 func (g *activityGatewayStub) Start(_ context.Context, title work.Title) (work.Activity, error) {
+	g.calls++
 	g.receivedTitle = title
 	return g.activity, nil
 }

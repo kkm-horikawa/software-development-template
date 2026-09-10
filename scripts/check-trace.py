@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""課題からIssue単位のテストまでの参照と番号を検算する。"""
+"""課題から現在の受入例とIssue単位の検査までの参照を検算する。"""
 
 from __future__ import annotations
 
@@ -8,18 +8,26 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SKIP_DIRECTORIES = {".git", ".pytest_cache", ".venv", "__pycache__"}
-LONG_LIVED = r"(?:PB|SC|REQ|AC)-\d{3}"
+REQUIREMENTS = ROOT / "docs/110_requirements"
+SCENARIOS = REQUIREMENTS / "シナリオ"
+INCREMENTS = ROOT / "docs/210_increments"
+LONG_LIVED = r"(?:PB|SC|REQ)-\d{3}"
+ACCEPTANCE = r"AC-SC\d{3}-\d{2}"
+EXAMPLE = r"EX-SC\d{3}-\d{2}"
 INCREMENT_LOCAL = r"(?:SPEC|ST|AD|IT)-\d+(?:-\d+)*-\d{2}"
-IDENTIFIER = rf"(?:{LONG_LIVED}|{INCREMENT_LOCAL})"
+IDENTIFIER = rf"(?:{LONG_LIVED}|{ACCEPTANCE}|{EXAMPLE}|{INCREMENT_LOCAL})"
 DEFINITION = re.compile(rf"^#{{1,6}}\s+({IDENTIFIER})\b")
 REFERENCE = re.compile(rf"\[({IDENTIFIER})\]")
 LEGACY_INCREMENT_ID = re.compile(r"^#{1,6}\s+(?:SPEC|ST|AD|IT)-\d{3}\b")
 ISSUE = re.compile(r"^対応Issue:\s*#(\d+)\s*$", re.MULTILINE)
+TEST_REFERENCE = re.compile(
+    r"`((?:backend|client|tests|scripts)/[^`]+::[A-Za-z0-9_-]+)`"
+)
 EXPECTED_PARENT = {
     "SC": "PB",
     "REQ": "SC",
     "AC": "REQ",
+    "EX": "AC",
     "SPEC": "AC",
     "ST": "SPEC",
     "AD": "SPEC",
@@ -28,15 +36,17 @@ EXPECTED_PARENT = {
 
 
 def requirement_documents() -> list[Path]:
-    return [
-        path
-        for path in sorted((ROOT / "docs/110_requirements").rglob("*.md"))
-        if path.name != "README.md"
-    ]
+    ignored = {
+        REQUIREMENTS / "README.md",
+        SCENARIOS / "README.md",
+        SCENARIOS / "_template.md",
+        SCENARIOS / "_acceptance-template.md",
+    }
+    return [path for path in sorted(REQUIREMENTS.rglob("*.md")) if path not in ignored]
 
 
 def increment_documents() -> list[Path]:
-    return sorted((ROOT / "docs/210_increments").glob("INC-*.md"))
+    return sorted(INCREMENTS.glob("INC-*.md"))
 
 
 def trace_documents() -> list[Path]:
@@ -63,6 +73,39 @@ def definitions() -> tuple[dict[str, tuple[Path, int, set[str]]], list[str]]:
                 continue
             found[identifier] = (document, line_number, set(REFERENCE.findall(line)))
     return found, failures
+
+
+def validate_scenario_numbers(
+    found: dict[str, tuple[Path, int, set[str]]],
+) -> list[str]:
+    failures: list[str] = []
+    for scenario in sorted(SCENARIOS.glob("SC-*")):
+        if not scenario.is_dir():
+            continue
+        scenario_number = scenario.name.split("-", 2)[1]
+        acceptance_key = f"SC{scenario_number}"
+        acceptance_document = scenario / "受入例.md"
+        local_ids = [
+            identifier
+            for identifier, (source, _line, _references) in found.items()
+            if source == acceptance_document
+            and identifier.split("-", 1)[0] in {"AC", "EX"}
+        ]
+        if not any(identifier.startswith("AC-") for identifier in local_ids):
+            failures.append(
+                f"{acceptance_document.relative_to(ROOT)}: 受入条件がありません"
+            )
+        if not any(identifier.startswith("EX-") for identifier in local_ids):
+            failures.append(
+                f"{acceptance_document.relative_to(ROOT)}: 具体例がありません"
+            )
+        for identifier in local_ids:
+            kind = identifier.split("-", 1)[0]
+            if not identifier.startswith(f"{kind}-{acceptance_key}-"):
+                failures.append(
+                    f"{acceptance_document.relative_to(ROOT)}: {identifier} が {scenario.name} と一致しません"
+                )
+    return failures
 
 
 def validate_increment_numbers(
@@ -95,21 +138,49 @@ def validate_increment_numbers(
     return failures
 
 
-def test_sources() -> str:
-    contents: list[str] = []
-    for pattern in ("**/test_*.py", "**/*_test.go"):
-        for path in ROOT.glob(pattern):
-            if not any(part in SKIP_DIRECTORIES for part in path.parts):
-                contents.append(path.read_text(encoding="utf-8"))
-    return "\n".join(contents)
+def section_test_references() -> dict[str, list[str]]:
+    references: dict[str, list[str]] = {}
+    for document in trace_documents():
+        current: str | None = None
+        for line in document.read_text(encoding="utf-8").splitlines():
+            definition = DEFINITION.match(line)
+            if definition:
+                current = definition.group(1)
+                references.setdefault(current, [])
+                continue
+            if current is not None:
+                references[current].extend(TEST_REFERENCE.findall(line))
+    return references
 
 
-def normalized(value: str) -> str:
-    return re.sub(r"[^a-zA-Z0-9]", "", value).lower()
+def validate_test_references(found: dict[str, tuple[Path, int, set[str]]]) -> list[str]:
+    failures: list[str] = []
+    references = section_test_references()
+    for identifier in found:
+        if identifier.split("-", 1)[0] not in {"EX", "ST", "IT"}:
+            continue
+        tests = references.get(identifier, [])
+        if not tests:
+            failures.append(f"{identifier} に実行物の参照がありません")
+            continue
+        for test in tests:
+            path_text, test_name = test.split("::", 1)
+            path = ROOT / path_text
+            if not path.is_file():
+                failures.append(
+                    f"{identifier} が存在しないテストを参照しています: {path_text}"
+                )
+                continue
+            if test_name not in path.read_text(encoding="utf-8"):
+                failures.append(
+                    f"{identifier} が存在しないテスト名を参照しています: {test}"
+                )
+    return failures
 
 
 def main() -> int:
     found, failures = definitions()
+    failures.extend(validate_scenario_numbers(found))
     failures.extend(validate_increment_numbers(found))
     for identifier, (document, line_number, references) in found.items():
         kind = identifier.split("-", 1)[0]
@@ -130,17 +201,11 @@ def main() -> int:
             if parent not in found:
                 failures.append(f"{identifier} が未定義の {parent} を参照しています")
 
-    sources = normalized(test_sources())
-    for identifier in found:
-        if not identifier.startswith(("ST-", "IT-")):
-            continue
-        if normalized(identifier) not in sources:
-            failures.append(f"{identifier} に対応する実在テストがありません")
-
+    failures.extend(validate_test_references(found))
     if failures:
         print("\n".join(failures), file=sys.stderr)
         return 1
-    print("要求からテストの対応: OK")
+    print("要求から受入例とテストの対応: OK")
     return 0
 
 

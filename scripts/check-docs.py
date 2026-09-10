@@ -24,9 +24,10 @@ REQUIRED_FILES = (
     "docs/110_requirements/01-背景と課題.md",
     "docs/110_requirements/02-利用者.md",
     "docs/110_requirements/03-要求.md",
-    "docs/110_requirements/04-受入基準.md",
+    "docs/110_requirements/04-横断的な受入条件.md",
     "docs/110_requirements/シナリオ/README.md",
     "docs/110_requirements/シナリオ/_template.md",
+    "docs/110_requirements/シナリオ/_acceptance-template.md",
     "docs/150_system/README.md",
     "docs/150_system/全体構造.md",
     "docs/150_system/データの構造.md",
@@ -44,6 +45,8 @@ REQUIRED_FILES = (
     "scripts/check-all.sh",
     "scripts/exercise-platforms.py",
     "scripts/check-trace.py",
+    "tests/acceptance/manual/README.md",
+    "tests/acceptance/manual/_template.md",
     ".github/ISSUE_TEMPLATE/change.yml",
     ".github/pull_request_template.md",
 )
@@ -51,6 +54,7 @@ REQUIRED_DIRECTORIES = (
     "docs/110_requirements/シナリオ",
     "docs/150_system/シーケンス",
     "docs/210_increments",
+    "tests/acceptance",
 )
 LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 ISSUE_FORM_TITLE = re.compile(r"^title:\s*(.*)$", re.MULTILINE)
@@ -101,7 +105,8 @@ def orphan_sequences() -> list[str]:
     sequences = ROOT / "docs/150_system/シーケンス"
     scenarios = ROOT / "docs/110_requirements/シナリオ"
     for sequence in sorted(sequences.glob("SC-*.md")):
-        if not (scenarios / sequence.name).is_file():
+        scenario = scenarios / sequence.stem / "README.md"
+        if not scenario.is_file():
             missing.append(str(sequence.relative_to(ROOT)))
     return missing
 
@@ -111,9 +116,21 @@ def unlisted_scenarios() -> list[str]:
     index = (scenarios / "README.md").read_text(encoding="utf-8")
     return [
         str(scenario.relative_to(ROOT))
-        for scenario in sorted(scenarios.glob("SC-*.md"))
-        if scenario.name not in index
+        for scenario in sorted(scenarios.glob("SC-*"))
+        if scenario.is_dir() and f"{scenario.name}/README.md" not in index
     ]
+
+
+def incomplete_scenarios() -> list[str]:
+    scenarios = ROOT / "docs/110_requirements/シナリオ"
+    incomplete: list[str] = []
+    for scenario in sorted(scenarios.glob("SC-*")):
+        if not scenario.is_dir():
+            continue
+        for required in ("README.md", "受入例.md"):
+            if not (scenario / required).is_file():
+                incomplete.append(str((scenario / required).relative_to(ROOT)))
+    return incomplete
 
 
 def main() -> int:
@@ -135,6 +152,10 @@ def main() -> int:
         *(
             f"シナリオ一覧から参照されていません: {scenario}"
             for scenario in unlisted_scenarios()
+        ),
+        *(
+            f"シナリオに必要な文書がありません: {document}"
+            for document in incomplete_scenarios()
         ),
     ]
     if failures:

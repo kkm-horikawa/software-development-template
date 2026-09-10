@@ -9,7 +9,7 @@ import (
 	usecasework "example.com/worklog-cli/internal/usecase/work"
 )
 
-func TestIT_1_02_StartWorkRequestsStartedActivity(t *testing.T) {
+func TestStartWorkRequestsStartedActivity(t *testing.T) {
 	startedAt := time.Date(2026, time.September, 9, 10, 0, 0, 0, time.UTC)
 	title, err := work.NewTitle("設計を書く")
 	if err != nil {
