@@ -21,7 +21,7 @@ FastAPIを起動してGoのCLIへ `start "設計を書く"` を渡すと、CLI�
 
 ### AD-003: 各単位は相手の内部実装ではなくHTTPへ依存する [SPEC-003]
 
-FastAPIとSQLAlchemyは `backend/worklog-api`、GoのCLIは `client/worklog-cli` に置く。それぞれが依存関係、起動、検査を自分の中へ持ち、Go側はバックエンドのPythonコードを読み込まずHTTPアダプタを使う。
+FastAPIとSQLAlchemyは `backend/worklog-api`、GoのCLIは `client/worklog-cli` に置く。それぞれが依存関係、起動、検査を自分の中へ持ち、Go側はバックエンドのPythonコードを読み込まずHTTPアダプタを使う。バックエンドの構成責任は `ApplicationFactory` へ閉じ、モジュール直下の自由関数へ流れを置かない。
 
 ### IT-003: GoのHTTPアダプタと公開する要求・応答を確認する [AD-003]
 

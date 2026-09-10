@@ -15,36 +15,69 @@ from worklog.application.start_activity import StartActivity
 from worklog.domain.activity import EmptyActivityTitle
 
 
-def create_app(
-    engine: Engine | None = None,
-    clock: Callable[[], datetime] | None = None,
-    new_id: Callable[[], UUID] | None = None,
-) -> FastAPI:
-    database = engine or create_engine("sqlite:///./activities.sqlite3")
-    Base.metadata.create_all(database)
-    sessions = sessionmaker(database, expire_on_commit=False)
-    repository = SQLAlchemyActivityRepository(sessions)
-    start_activity = StartActivity(
-        repository=repository,
-        clock=clock or (lambda: datetime.now(timezone.utc)),
-        new_id=new_id or uuid4,
-    )
-    endpoint = ActivityEndpoint(start_activity)
+class ApplicationFactory:
+    def __init__(
+        self,
+        engine: Engine | None = None,
+        clock: Callable[[], datetime] | None = None,
+        new_id: Callable[[], UUID] | None = None,
+    ) -> None:
+        self.engine = engine
+        self.clock = clock or (lambda: datetime.now(timezone.utc))
+        self.new_id = new_id or uuid4
 
-    app = FastAPI(title="Worklog API")
-    app.add_api_route(
-        "/activities",
-        endpoint.post_activity,
-        methods=["POST"],
-        status_code=201,
-        response_model=ActivityResponse,
-    )
+    def __call__(self) -> FastAPI:
+        return self.create()
 
-    @app.exception_handler(EmptyActivityTitle)
+    def create(self) -> FastAPI:
+        database = self.prepare_database()
+        repository = self.make_repository(database)
+        start_activity = self.make_start_activity(repository)
+        endpoint = self.make_endpoint(start_activity)
+        return self.make_application(endpoint, repository)
+
+    def prepare_database(self) -> Engine:
+        database = self.engine or create_engine("sqlite:///./activities.sqlite3")
+        Base.metadata.create_all(database)
+        return database
+
+    def make_repository(self, database: Engine) -> SQLAlchemyActivityRepository:
+        sessions = sessionmaker(database, expire_on_commit=False)
+        return SQLAlchemyActivityRepository(sessions)
+
+    def make_start_activity(
+        self, repository: SQLAlchemyActivityRepository
+    ) -> StartActivity:
+        return StartActivity(
+            repository=repository,
+            clock=self.clock,
+            new_id=self.new_id,
+        )
+
+    def make_endpoint(self, start_activity: StartActivity) -> ActivityEndpoint:
+        return ActivityEndpoint(start_activity)
+
+    def make_application(
+        self,
+        endpoint: ActivityEndpoint,
+        repository: SQLAlchemyActivityRepository,
+    ) -> FastAPI:
+        app = FastAPI(title="Worklog API")
+        app.add_api_route(
+            "/activities",
+            endpoint.post_activity,
+            methods=["POST"],
+            status_code=201,
+            response_model=ActivityResponse,
+        )
+        app.add_exception_handler(EmptyActivityTitle, self.handle_empty_title)
+        app.state.activity_repository = repository
+        return app
+
     def handle_empty_title(
-        _request: Request, error: EmptyActivityTitle
+        self, _request: Request, error: EmptyActivityTitle
     ) -> JSONResponse:
         return JSONResponse(status_code=422, content={"detail": str(error)})
 
-    app.state.activity_repository = repository
-    return app
+
+factory = ApplicationFactory()

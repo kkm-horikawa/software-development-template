@@ -20,7 +20,7 @@ POST /activities
 
 ```console
 $ uv sync
-$ uv run uvicorn worklog.main:create_app --factory --reload
+$ uv run uvicorn worklog.main:factory --factory --reload
 ```
 
 別の端末から作業を始めます。

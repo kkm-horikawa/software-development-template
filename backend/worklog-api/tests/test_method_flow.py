@@ -18,6 +18,20 @@ def test_method_flow_usecase_uses_only_named_stages() -> None:
     assert validate_method_flow(source.read_text(), "StartActivity", "run") == []
 
 
+def test_method_flow_application_factory_uses_only_named_stages() -> None:
+    source = SOURCE_ROOT / "worklog/main.py"
+    assert (
+        validate_method_flow(source.read_text(), "ApplicationFactory", "create") == []
+    )
+
+
+def test_composition_root_has_no_module_level_functions() -> None:
+    source = SOURCE_ROOT / "worklog/main.py"
+    tree = ast.parse(source.read_text())
+    functions = [node.name for node in tree.body if isinstance(node, ast.FunctionDef)]
+    assert functions == []
+
+
 def test_method_flow_accepts_methods_on_the_responsible_object() -> None:
     source = """
     class Flow:

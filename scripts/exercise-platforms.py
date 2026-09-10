@@ -13,7 +13,7 @@ from uuid import UUID
 
 import uvicorn
 from sqlalchemy import create_engine
-from worklog.main import create_app
+from worklog.main import ApplicationFactory
 
 ROOT = Path(__file__).resolve().parents[1]
 CLIENT = ROOT / "client/worklog-cli"
@@ -36,11 +36,11 @@ def wait_until_started(server: uvicorn.Server) -> None:
 def main() -> None:
     with tempfile.TemporaryDirectory() as directory:
         database = create_engine(f"sqlite:///{directory}/activities.sqlite3")
-        app = create_app(
+        app = ApplicationFactory(
             engine=database,
             clock=lambda: datetime(2026, 9, 9, 10, 0, tzinfo=timezone.utc),
             new_id=lambda: UUID("11111111-1111-1111-1111-111111111111"),
-        )
+        ).create()
         port = available_port()
         server = uvicorn.Server(
             uvicorn.Config(app, host="127.0.0.1", port=port, log_level="critical")
