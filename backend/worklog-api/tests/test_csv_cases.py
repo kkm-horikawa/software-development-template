@@ -3,12 +3,10 @@ from pathlib import Path
 import pytest
 from acceptance.sc_001.cases import HTTPStartCases
 
-CASE_FILE = Path(__file__).parent / "acceptance/sc_001/task.csv"
-
 
 class TestHTTPStartCases:
-    def test_load_preserves_input_spaces_and_typed_status(self) -> None:
-        cases = HTTPStartCases(CASE_FILE).load()
+    def test_load_preserves_input_spaces_and_typed_status(self, tmp_path: Path) -> None:
+        cases = HTTPStartCases(self.sample_csv(tmp_path)).load()
 
         assert [case.case_id for case in cases] == ["EX-SC001-01", "EX-SC001-03"]
         assert cases[0].title == "  設計を書く  "
@@ -30,7 +28,7 @@ class TestHTTPStartCases:
         ],
     )
     def test_rejects_invalid_csv(self, tmp_path: Path, change: str) -> None:
-        original = CASE_FILE.read_text(encoding="utf-8")
+        original = self.sample_csv(tmp_path).read_text(encoding="utf-8")
         lines = original.splitlines()
         match change:
             case "added_column":
@@ -56,3 +54,26 @@ class TestHTTPStartCases:
 
         with pytest.raises(ValueError, match="task.csv"):
             HTTPStartCases(path).load()
+
+    def sample_csv(self, tmp_path: Path) -> Path:
+        path = tmp_path / "task.csv"
+        path.write_text(
+            "case_id,title,status_code,expected_id,expected_title,expected_started_at,expected_error\n"
+            'EX-SC001-01,"  設計を書く  ",201,11111111-1111-1111-1111-111111111111,設計を書く,2026-09-09T10:00:00Z,\n'
+            'EX-SC001-03,"   ",422,,,,作業名を空にはできません\n',
+            encoding="utf-8",
+        )
+        return path
+
+    def test_accepts_added_and_reordered_rows(self, tmp_path: Path) -> None:
+        path = self.sample_csv(tmp_path)
+        lines = path.read_text(encoding="utf-8").splitlines()
+        added = lines[1].replace("EX-SC001-01", "new-case")
+        path.write_text(
+            "\n".join([lines[0], added, *reversed(lines[1:])]) + "\n", encoding="utf-8"
+        )
+
+        cases = HTTPStartCases(path).load()
+
+        assert cases[0].case_id == "new-case"
+        assert len(cases) == 3

@@ -8,6 +8,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from uuid import UUID
 
 import uvicorn
@@ -21,7 +22,7 @@ class RunningSystem:
 
 
 @contextmanager
-def running_system() -> Iterator[RunningSystem]:
+def running_system(storage_failure: bool = False) -> Iterator[RunningSystem]:
     with tempfile.TemporaryDirectory() as directory:
         database = create_engine(f"sqlite:///{directory}/activities.sqlite3")
         app = ApplicationFactory(
@@ -29,6 +30,12 @@ def running_system() -> Iterator[RunningSystem]:
             clock=lambda: datetime(2026, 9, 9, 10, 0, tzinfo=timezone.utc),
             new_id=lambda: UUID("11111111-1111-1111-1111-111111111111"),
         ).create()
+        if storage_failure:
+            with database.begin() as connection:
+                connection.exec_driver_sql(
+                    "CREATE TRIGGER reject_activity BEFORE INSERT ON activities "
+                    "BEGIN SELECT RAISE(ABORT, 'test storage failure'); END"
+                )
         port = available_port()
         server = uvicorn.Server(
             uvicorn.Config(app, host="127.0.0.1", port=port, log_level="critical")
@@ -64,3 +71,38 @@ def wait_until_started(server: uvicorn.Server) -> None:
             return
         time.sleep(0.01)
     raise RuntimeError("FastAPIを起動できませんでした")
+
+
+class FaultyResponseHandler(BaseHTTPRequestHandler):
+    lose_response = False
+
+    def do_POST(self) -> None:
+        self.rfile.read(int(self.headers.get("Content-Length", "0")))
+        if self.lose_response:
+            self.close_connection = True
+            return
+        self.send_response(201)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write('{"title":"設計を書く"}'.encode())
+
+    def log_message(self, _format: str, *args: object) -> None:
+        pass
+
+
+class LostResponseHandler(FaultyResponseHandler):
+    lose_response = True
+
+
+@contextmanager
+def faulty_backend(lose_response: bool = False) -> Iterator[str]:
+    handler = LostResponseHandler if lose_response else FaultyResponseHandler
+    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)

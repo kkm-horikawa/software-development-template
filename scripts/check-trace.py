@@ -1,213 +1,143 @@
 #!/usr/bin/env python3
-"""課題から現在の受入例とIssue単位の検査までの参照を検算する。"""
+"""現在の受入例と実行ケースを対応させる。過去の増分は採番だけ確かめる。"""
 
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-REQUIREMENTS = ROOT / "docs/110_requirements"
-SCENARIOS = REQUIREMENTS / "シナリオ"
-INCREMENTS = ROOT / "docs/210_increments"
-LONG_LIVED = r"(?:PB|SC|REQ)-\d{3}"
-ACCEPTANCE = r"AC-SC\d{3}-\d{2}"
-EXAMPLE = r"EX-SC\d{3}-\d{2}"
-INCREMENT_LOCAL = r"(?:SPEC|ST|AD|IT)-\d+(?:-\d+)*-\d{2}"
-IDENTIFIER = rf"(?:{LONG_LIVED}|{ACCEPTANCE}|{EXAMPLE}|{INCREMENT_LOCAL})"
-DEFINITION = re.compile(rf"^#{{1,6}}\s+({IDENTIFIER})\b")
-REFERENCE = re.compile(rf"\[({IDENTIFIER})\]")
-LEGACY_INCREMENT_ID = re.compile(r"^#{1,6}\s+(?:SPEC|ST|AD|IT)-\d{3}\b")
-ISSUE = re.compile(r"^対応Issue:\s*#(\d+)\s*$", re.MULTILINE)
-TEST_REFERENCE = re.compile(
-    r"`((?:backend|client|tests|scripts)/[^`]+::[A-Za-z0-9_-]+)`"
-)
-EXPECTED_PARENT = {
-    "SC": "PB",
-    "REQ": "SC",
-    "AC": "REQ",
-    "EX": "AC",
-    "SPEC": "AC",
-    "ST": "SPEC",
-    "AD": "SPEC",
-    "IT": "AD",
-}
 
 
-def requirement_documents() -> list[Path]:
-    ignored = {
-        REQUIREMENTS / "README.md",
-        SCENARIOS / "README.md",
-        SCENARIOS / "_template.md",
-        SCENARIOS / "_acceptance-template.md",
-    }
-    return [path for path in sorted(REQUIREMENTS.rglob("*.md")) if path not in ignored]
+class TraceCheck:
+    ENTRY = re.compile(r"^\| (EX-SC\d{3}-\d{2}) \| [^|]+ \| `([^`]+)` \|$")
+    CASE = re.compile(r"\[(EX-SC\d{3}-\d{2})\]$")
+    ISSUE = re.compile(r"^対応Issue: #(\d+)\s*$", re.MULTILINE)
 
+    def __init__(self, root: Path = ROOT) -> None:
+        self.root = root
 
-def increment_documents() -> list[Path]:
-    return sorted(INCREMENTS.glob("INC-*.md"))
+    def run(self) -> list[str]:
+        entries, failures = self.read_entries()
+        failures.extend(self.check_increment_numbers())
+        if failures:
+            return failures
+        collected, errors = self.collect_tests()
+        return [*errors, *self.check_targets(entries, collected)]
 
-
-def trace_documents() -> list[Path]:
-    return [*requirement_documents(), *increment_documents()]
-
-
-def definitions() -> tuple[dict[str, tuple[Path, int, set[str]]], list[str]]:
-    found: dict[str, tuple[Path, int, set[str]]] = {}
-    failures: list[str] = []
-    for document in trace_documents():
-        for line_number, line in enumerate(
-            document.read_text(encoding="utf-8").splitlines(), 1
+    def read_entries(self) -> tuple[dict[str, str], list[str]]:
+        entries: dict[str, str] = {}
+        failures: list[str] = []
+        for scenario in sorted(
+            (self.root / "docs/110_requirements/シナリオ").glob("SC-*")
         ):
-            if LEGACY_INCREMENT_ID.match(line):
-                failures.append(
-                    f"{document.relative_to(ROOT)}:{line_number}: 増分内の識別子にIssue番号がありません"
-                )
-            match = DEFINITION.match(line)
-            if not match:
+            if not scenario.is_dir():
                 continue
-            identifier = match.group(1)
-            if identifier in found:
-                failures.append(f"{identifier} が二重に定義されています")
-                continue
-            found[identifier] = (document, line_number, set(REFERENCE.findall(line)))
-    return found, failures
+            number = scenario.name.split("-", 2)[1]
+            path = scenario / "受入例.md"
+            local_count = 0
+            for line in path.read_text(encoding="utf-8").splitlines():
+                match = self.ENTRY.match(line)
+                if match is None:
+                    if line.startswith("| EX-"):
+                        failures.append(
+                            f"{path.relative_to(self.root)}: 受入例の行形式が不正です"
+                        )
+                    continue
+                case_id, target = match.groups()
+                local_count += 1
+                if not case_id.startswith(f"EX-SC{number}-"):
+                    failures.append(f"{case_id}: シナリオの番号と一致しません")
+                if case_id in entries:
+                    failures.append(f"{case_id}: 受入例が重複しています")
+                entries[case_id] = target
+            if local_count == 0:
+                failures.append(f"{path.relative_to(self.root)}: 受入例がありません")
+        return entries, failures
 
+    def check_increment_numbers(self) -> list[str]:
+        failures: list[str] = []
+        for path in (self.root / "docs/210_increments").glob("INC-*.md"):
+            match = re.fullmatch(r"INC-(\d+)(?:-\d+)?", path.stem)
+            issue = self.ISSUE.search(path.read_text(encoding="utf-8"))
+            if match is None or issue is None or match.group(1) != issue.group(1):
+                failures.append(f"{path.name}: ファイル名と対応Issueが一致しません")
+        return failures
 
-def validate_scenario_numbers(
-    found: dict[str, tuple[Path, int, set[str]]],
-) -> list[str]:
-    failures: list[str] = []
-    for scenario in sorted(SCENARIOS.glob("SC-*")):
-        if not scenario.is_dir():
-            continue
-        scenario_number = scenario.name.split("-", 2)[1]
-        acceptance_key = f"SC{scenario_number}"
-        acceptance_document = scenario / "受入例.md"
-        local_ids = [
-            identifier
-            for identifier, (source, _line, _references) in found.items()
-            if source == acceptance_document
-            and identifier.split("-", 1)[0] in {"AC", "EX"}
-        ]
-        if not any(identifier.startswith("AC-") for identifier in local_ids):
-            failures.append(
-                f"{acceptance_document.relative_to(ROOT)}: 受入条件がありません"
-            )
-        if not any(identifier.startswith("EX-") for identifier in local_ids):
-            failures.append(
-                f"{acceptance_document.relative_to(ROOT)}: 具体例がありません"
-            )
-        for identifier in local_ids:
-            kind = identifier.split("-", 1)[0]
-            if not identifier.startswith(f"{kind}-{acceptance_key}-"):
+    def collect_tests(self) -> tuple[set[str], list[str]]:
+        result = subprocess.run(
+            [
+                "uv",
+                "run",
+                "--project",
+                "backend/worklog-api",
+                "python",
+                "-m",
+                "pytest",
+                "--rootdir=.",
+                "--collect-only",
+                "-q",
+                "backend/worklog-api/tests",
+                "tests",
+            ],
+            cwd=self.root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            return set(), [
+                "テストの収集に失敗しました:\n" + result.stdout + result.stderr
+            ]
+        return {
+            line.strip()
+            for line in result.stdout.splitlines()
+            if "::" in line and line.startswith(("backend/", "tests/"))
+        }, []
+
+    def check_targets(self, entries: dict[str, str], collected: set[str]) -> list[str]:
+        failures: list[str] = []
+        for case_id, target in entries.items():
+            if ".md::" in target:
+                if not self.manual_exists(case_id, target):
+                    failures.append(
+                        f"{case_id}: 手動確認書の見出しがありません: {target}"
+                    )
+            elif target not in collected or not target.endswith(f"[{case_id}]"):
                 failures.append(
-                    f"{acceptance_document.relative_to(ROOT)}: {identifier} が {scenario.name} と一致しません"
+                    f"{case_id}: 実行できる個別ケースがありません: {target}"
                 )
-    return failures
+        for target in collected:
+            match = self.CASE.search(target)
+            if "/acceptance/" in target and match is None:
+                failures.append(f"受入テストにEXのケース名がありません: {target}")
+            if match is not None and entries.get(match.group(1)) != target:
+                failures.append(
+                    f"{match.group(1)}: 現在の受入例一覧に対応する実行物がありません"
+                )
+        return failures
 
-
-def validate_increment_numbers(
-    found: dict[str, tuple[Path, int, set[str]]],
-) -> list[str]:
-    failures: list[str] = []
-    for document in increment_documents():
-        increment_key = document.stem.removeprefix("INC-")
-        issue_number = increment_key.split("-", 1)[0]
-        content = document.read_text(encoding="utf-8")
-        issue = ISSUE.search(content)
-        if issue is None or issue.group(1) != issue_number:
-            failures.append(
-                f"{document.relative_to(ROOT)}: ファイル名のIssue番号と対応Issueが一致しません"
+    def manual_exists(self, case_id: str, target: str) -> bool:
+        path_text, anchor = target.split("::", 1)
+        path = (self.root / path_text).resolve()
+        if not path.is_relative_to(self.root.resolve()) or not path.is_file():
+            return False
+        return (
+            anchor == case_id
+            and re.search(
+                rf"^#{{1,6}} {re.escape(anchor)}(?:\s|$)",
+                path.read_text(encoding="utf-8"),
+                re.MULTILINE,
             )
-        local_ids = [
-            identifier
-            for identifier, (source, _line, _references) in found.items()
-            if source == document
-            and identifier.split("-", 1)[0] in {"SPEC", "ST", "AD", "IT"}
-        ]
-        if not local_ids:
-            failures.append(f"{document.relative_to(ROOT)}: 増分内の識別子がありません")
-        for identifier in local_ids:
-            kind = identifier.split("-", 1)[0]
-            if not identifier.startswith(f"{kind}-{increment_key}-"):
-                failures.append(
-                    f"{document.relative_to(ROOT)}: {identifier} が増分キー {increment_key} と一致しません"
-                )
-    return failures
-
-
-def section_test_references() -> dict[str, list[str]]:
-    references: dict[str, list[str]] = {}
-    for document in trace_documents():
-        current: str | None = None
-        for line in document.read_text(encoding="utf-8").splitlines():
-            definition = DEFINITION.match(line)
-            if definition:
-                current = definition.group(1)
-                references.setdefault(current, [])
-                continue
-            if current is not None:
-                references[current].extend(TEST_REFERENCE.findall(line))
-    return references
-
-
-def validate_test_references(found: dict[str, tuple[Path, int, set[str]]]) -> list[str]:
-    failures: list[str] = []
-    references = section_test_references()
-    for identifier in found:
-        if identifier.split("-", 1)[0] not in {"EX", "ST", "IT"}:
-            continue
-        tests = references.get(identifier, [])
-        if not tests:
-            failures.append(f"{identifier} に実行物の参照がありません")
-            continue
-        for test in tests:
-            path_text, test_name = test.split("::", 1)
-            path = ROOT / path_text
-            if not path.is_file():
-                failures.append(
-                    f"{identifier} が存在しないテストを参照しています: {path_text}"
-                )
-                continue
-            if test_name not in path.read_text(encoding="utf-8"):
-                failures.append(
-                    f"{identifier} が存在しないテスト名を参照しています: {test}"
-                )
-    return failures
-
-
-def main() -> int:
-    found, failures = definitions()
-    failures.extend(validate_scenario_numbers(found))
-    failures.extend(validate_increment_numbers(found))
-    for identifier, (document, line_number, references) in found.items():
-        kind = identifier.split("-", 1)[0]
-        expected_parent = EXPECTED_PARENT.get(kind)
-        if expected_parent is None:
-            continue
-        parents = {
-            reference
-            for reference in references
-            if reference.startswith(expected_parent + "-")
-        }
-        if not parents:
-            failures.append(
-                f"{document.relative_to(ROOT)}:{line_number}: {identifier} から {expected_parent} への参照がありません"
-            )
-            continue
-        for parent in parents:
-            if parent not in found:
-                failures.append(f"{identifier} が未定義の {parent} を参照しています")
-
-    failures.extend(validate_test_references(found))
-    if failures:
-        print("\n".join(failures), file=sys.stderr)
-        return 1
-    print("要求から受入例とテストの対応: OK")
-    return 0
+            is not None
+        )
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    failures = TraceCheck().run()
+    if failures:
+        print("\n".join(failures), file=sys.stderr)
+        raise SystemExit(1)
+    print("要求から受入例とテストの対応: OK")

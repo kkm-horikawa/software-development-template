@@ -8,6 +8,10 @@ class StartActivityRequest(BaseModel):
     title: str
 
 
+class ErrorResponse(BaseModel):
+    detail: str
+
+
 class ActivityResponse(BaseModel):
     id: UUID
     title: str

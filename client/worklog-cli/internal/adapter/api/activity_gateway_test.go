@@ -47,3 +47,30 @@ func TestActivityGatewayStartsActivityThroughHTTPContract(t *testing.T) {
 		t.Fatalf("started at = %s", activity.StartedAt())
 	}
 }
+
+func TestActivityGatewayRejectsInvalidSuccessResponse(t *testing.T) {
+	cases := []struct{ name, body string }{
+		{"missing-fields", `{"title":"設計を書く"}`},
+		{"invalid-id", `{"id":"invalid","title":"設計を書く","started_at":"2026-09-09T10:00:00Z"}`},
+		{"missing-time", `{"id":"11111111-1111-1111-1111-111111111111","title":"設計を書く"}`},
+		{"invalid-time", `{"id":"11111111-1111-1111-1111-111111111111","title":"設計を書く","started_at":"yesterday"}`},
+		{"invalid-json", `{`},
+	}
+	for _, item := range cases {
+		t.Run(item.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				writer.WriteHeader(http.StatusCreated)
+				_, _ = writer.Write([]byte(item.body))
+			}))
+			defer server.Close()
+			title, err := work.NewTitle("設計を書く")
+			if err != nil {
+				t.Fatal(err)
+			}
+			gateway := api.NewActivityGateway(server.Client(), server.URL)
+			if _, err := gateway.Start(context.Background(), title); err == nil {
+				t.Fatal("不正な応答を成功扱いしました")
+			}
+		})
+	}
+}

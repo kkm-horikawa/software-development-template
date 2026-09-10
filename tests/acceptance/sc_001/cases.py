@@ -7,6 +7,9 @@ from pathlib import Path
 class BackendState(Enum):
     RUNNING = "running"
     UNREACHABLE = "unreachable"
+    INVALID_RESPONSE = "invalid_response"
+    LOST_RESPONSE = "lost_response"
+    STORAGE_FAILURE = "storage_failure"
 
 
 @dataclass(frozen=True)

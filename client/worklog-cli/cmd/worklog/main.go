@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"example.com/worklog-cli/internal/adapter/api"
 	"example.com/worklog-cli/internal/adapter/cli"
@@ -12,7 +13,7 @@ import (
 )
 
 func main() {
-	gateway := api.NewActivityGateway(http.DefaultClient, apiBaseURL())
+	gateway := api.NewActivityGateway(&http.Client{Timeout: 10 * time.Second}, apiBaseURL())
 	startWork := usecasework.NewStartWork(gateway)
 	entry := cli.NewEntry(os.Args[1:], os.Stdout, startWork)
 	if err := entry.Run(context.Background()); err != nil {

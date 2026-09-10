@@ -3,14 +3,16 @@ from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import Engine, create_engine
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import sessionmaker
 
 from worklog.adapters.database.activity_repository import SQLAlchemyActivityRepository
 from worklog.adapters.database.models import Base
 from worklog.adapters.http.activity_endpoint import ActivityEndpoint
-from worklog.adapters.http.schemas import ActivityResponse
+from worklog.adapters.http.schemas import ActivityResponse, ErrorResponse
 from worklog.application.start_activity import StartActivity
 from worklog.domain.activity import EmptyActivityTitle
 
@@ -69,8 +71,11 @@ class ApplicationFactory:
             methods=["POST"],
             status_code=201,
             response_model=ActivityResponse,
+            responses={422: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
         )
         app.add_exception_handler(EmptyActivityTitle, self.handle_empty_title)
+        app.add_exception_handler(RequestValidationError, self.handle_invalid_request)
+        app.add_exception_handler(SQLAlchemyError, self.handle_storage_error)
         app.state.activity_repository = repository
         return app
 
@@ -78,6 +83,20 @@ class ApplicationFactory:
         self, _request: Request, error: EmptyActivityTitle
     ) -> JSONResponse:
         return JSONResponse(status_code=422, content={"detail": str(error)})
+
+    def handle_invalid_request(
+        self, _request: Request, _error: RequestValidationError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=422, content={"detail": "作業名を文字列で指定してください"}
+        )
+
+    def handle_storage_error(
+        self, _request: Request, _error: SQLAlchemyError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=503, content={"detail": "作業を保存できませんでした"}
+        )
 
 
 factory = ApplicationFactory()

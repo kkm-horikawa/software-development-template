@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 
 from tests.acceptance.sc_001.cases import BackendState, CLIStartCase, CLIStartCases
-from tests.acceptance.sc_001.fixtures import running_system, unreachable_base_url
+from tests.acceptance.sc_001.fixtures import (
+    faulty_backend,
+    running_system,
+    unreachable_base_url,
+)
 
 ROOT = Path(__file__).resolve().parents[3]
 CLIENT = ROOT / "client/worklog-cli"
@@ -32,11 +36,18 @@ class TestCLIStartActivity:
 
     @contextmanager
     def backend(self, state: BackendState) -> Iterator[str]:
-        if state is BackendState.RUNNING:
-            with running_system() as system:
+        if state in {BackendState.RUNNING, BackendState.STORAGE_FAILURE}:
+            with running_system(
+                storage_failure=state is BackendState.STORAGE_FAILURE
+            ) as system:
                 yield system.base_url
-        else:
+        elif state is BackendState.UNREACHABLE:
             with unreachable_base_url() as base_url:
+                yield base_url
+        else:
+            with faulty_backend(
+                lose_response=state is BackendState.LOST_RESPONSE
+            ) as base_url:
                 yield base_url
 
     def run_cli(self, base_url: str, title: str) -> subprocess.CompletedProcess[str]:

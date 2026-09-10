@@ -4,12 +4,10 @@ import pytest
 
 from tests.acceptance.sc_001.cases import BackendState, CLIStartCases
 
-CASE_FILE = Path(__file__).parent / "acceptance/sc_001/task.csv"
-
 
 class TestCLIStartCases:
-    def test_load_preserves_input_and_expected_results(self) -> None:
-        cases = CLIStartCases(CASE_FILE).load()
+    def test_load_preserves_input_and_expected_results(self, tmp_path: Path) -> None:
+        cases = CLIStartCases(self.sample_csv(tmp_path)).load()
 
         assert [case.case_id for case in cases] == [
             "EX-SC001-02",
@@ -38,7 +36,7 @@ class TestCLIStartCases:
         ],
     )
     def test_rejects_invalid_csv(self, tmp_path: Path, change: str) -> None:
-        lines = CASE_FILE.read_text(encoding="utf-8").splitlines()
+        lines = self.sample_csv(tmp_path).read_text(encoding="utf-8").splitlines()
         match change:
             case "added_column":
                 lines[0] += ",started_at"
@@ -65,3 +63,27 @@ class TestCLIStartCases:
 
         with pytest.raises(ValueError, match="task.csv"):
             CLIStartCases(path).load()
+
+    def sample_csv(self, tmp_path: Path) -> Path:
+        path = tmp_path / "task.csv"
+        path.write_text(
+            "case_id,backend_state,title,expected_stdout_line,expected_error,expected_success\n"
+            "EX-SC001-02,running,設計を書く,開始: 設計を書く,,true\n"
+            'EX-SC001-04,unreachable,"   ",,作業名を空にはできません,false\n'
+            "EX-SC001-05,unreachable,設計を書く,,バックエンドへ作業開始を依頼できません,false\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def test_accepts_added_and_reordered_rows(self, tmp_path: Path) -> None:
+        path = self.sample_csv(tmp_path)
+        lines = path.read_text(encoding="utf-8").splitlines()
+        added = lines[1].replace("EX-SC001-02", "new-case")
+        path.write_text(
+            "\n".join([lines[0], added, *reversed(lines[1:])]) + "\n", encoding="utf-8"
+        )
+
+        cases = CLIStartCases(path).load()
+
+        assert cases[0].case_id == "new-case"
+        assert len(cases) == 4

@@ -2,3 +2,6 @@ case_id,backend_state,title,expected_stdout_line,expected_error,expected_success
 EX-SC001-02,running,設計を書く,開始: 設計を書く,,true
 EX-SC001-04,unreachable,"   ",,作業名を空にはできません,false
 EX-SC001-05,unreachable,設計を書く,,バックエンドへ作業開始を依頼できません,false
+EX-SC001-06,invalid_response,設計を書く,,応答の識別子または開始時刻が不正です,false
+EX-SC001-07,lost_response,設計を書く,,作業開始の結果を確認できません,false
+EX-SC001-08,storage_failure,設計を書く,,作業を保存できませんでした,false

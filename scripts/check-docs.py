@@ -73,6 +73,10 @@ def broken_links() -> list[str]:
     for document in sorted(ROOT.rglob("*.md")):
         if any(part in SKIP_DIRECTORIES for part in document.parts):
             continue
+        if document.parent == ROOT / "docs/210_increments" and document.name.startswith(
+            "INC-"
+        ):
+            continue
         for raw_target in LINK.findall(document.read_text(encoding="utf-8")):
             target = raw_target.strip().strip("<>")
             if target.startswith(("https://", "http://", "mailto:", "#")):
