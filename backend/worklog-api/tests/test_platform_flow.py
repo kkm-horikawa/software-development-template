@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 
 
-def test_st003_go_client_starts_activity_through_fastapi() -> None:
+def test_st_3_01_go_client_starts_activity_through_fastapi() -> None:
     result = subprocess.run(
         [sys.executable, str(ROOT / "scripts/exercise-platforms.py")],
         cwd=ROOT,

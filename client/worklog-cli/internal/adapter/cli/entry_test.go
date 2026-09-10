@@ -11,7 +11,7 @@ import (
 	usecasework "example.com/worklog-cli/internal/usecase/work"
 )
 
-func TestST002_EntryStartsWorkFromCommand(t *testing.T) {
+func TestST_1_02_EntryStartsWorkFromCommand(t *testing.T) {
 	gateway := &activityGatewayStub{activity: work.RestoreActivity(
 		"11111111-1111-1111-1111-111111111111",
 		mustTitle(t, "設計を書く"),

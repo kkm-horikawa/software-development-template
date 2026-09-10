@@ -6,6 +6,7 @@ cd "$root_dir"
 
 python3 scripts/check-docs.py
 python3 scripts/check-trace.py
+uv run --project backend/worklog-api pytest scripts/tests -q >/dev/null
 python3 scripts/check-secrets.py
 
 uv run --project backend/worklog-api ruff check backend/worklog-api scripts >/dev/null

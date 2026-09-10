@@ -8,7 +8,7 @@ from worklog.main import ApplicationFactory
 ROOT = Path(__file__).resolve().parents[3]
 
 
-def test_it004_published_openapi_matches_backend() -> None:
+def test_it_3_02_published_openapi_matches_backend() -> None:
     database = create_engine(
         "sqlite+pysqlite://",
         connect_args={"check_same_thread": False},

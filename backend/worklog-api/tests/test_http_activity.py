@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 
-def test_st001_http_entry_starts_and_saves_activity(app: FastAPI) -> None:
+def test_st_1_01_http_entry_starts_and_saves_activity(app: FastAPI) -> None:
     with TestClient(app) as client:
         response = client.post("/activities", json={"title": "  設計を書く  "})
 

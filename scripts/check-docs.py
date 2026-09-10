@@ -20,9 +20,17 @@ REQUIRED_FILES = (
     "docs/020_code-structure.md",
     "docs/030_testing.md",
     "docs/040_completion.md",
-    "docs/100_requirements.md",
-    "docs/increments/002_platform-layout.md",
-    "docs/increments/_template.md",
+    "docs/110_requirements/README.md",
+    "docs/110_requirements/01-背景と課題.md",
+    "docs/110_requirements/02-利用者とシナリオ.md",
+    "docs/110_requirements/03-要求.md",
+    "docs/110_requirements/04-受入基準.md",
+    "docs/150_system/README.md",
+    "docs/150_system/全体構造.md",
+    "docs/150_system/データの構造.md",
+    "docs/150_system/シーケンス/README.md",
+    "docs/210_increments/README.md",
+    "docs/210_increments/_template.md",
     "docs/decisions/_template.md",
     "backend/worklog-api/README.md",
     "backend/worklog-api/pyproject.toml",
@@ -37,12 +45,21 @@ REQUIRED_FILES = (
     ".github/ISSUE_TEMPLATE/change.yml",
     ".github/pull_request_template.md",
 )
+REQUIRED_DIRECTORIES = (
+    "docs/110_requirements/シナリオ",
+    "docs/150_system/シーケンス",
+    "docs/210_increments",
+)
 LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 ISSUE_FORM_TITLE = re.compile(r"^title:\s*(.*)$", re.MULTILINE)
 
 
 def missing_required_files() -> list[str]:
     return [name for name in REQUIRED_FILES if not (ROOT / name).is_file()]
+
+
+def missing_required_directories() -> list[str]:
+    return [name for name in REQUIRED_DIRECTORIES if not (ROOT / name).is_dir()]
 
 
 def broken_links() -> list[str]:
@@ -77,13 +94,31 @@ def invalid_issue_form_titles() -> list[str]:
     return invalid
 
 
+def orphan_sequences() -> list[str]:
+    missing: list[str] = []
+    sequences = ROOT / "docs/150_system/シーケンス"
+    scenarios = ROOT / "docs/110_requirements/シナリオ"
+    for sequence in sorted(sequences.glob("SC-*.md")):
+        if not (scenarios / sequence.name).is_file():
+            missing.append(str(sequence.relative_to(ROOT)))
+    return missing
+
+
 def main() -> int:
     failures = [
         *(f"必要なファイルがありません: {name}" for name in missing_required_files()),
+        *(
+            f"必要なディレクトリがありません: {name}"
+            for name in missing_required_directories()
+        ),
         *(f"リンク先がありません: {link}" for link in broken_links()),
         *(
             f"Issueフォームのtitleが空です: {form}"
             for form in invalid_issue_form_titles()
+        ),
+        *(
+            f"対応する要求シナリオが無いシーケンスです: {sequence}"
+            for sequence in orphan_sequences()
         ),
     ]
     if failures:

@@ -6,6 +6,7 @@ check:
 
 check-docs:
     @python3 scripts/check-docs.py
+    @uv run --project backend/worklog-api pytest scripts/tests -q >/dev/null
 
 check-trace:
     @python3 scripts/check-trace.py

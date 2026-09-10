@@ -21,7 +21,7 @@ body:
     id: scenario
     attributes:
       label: 中心となる利用の流れ
-      description: 誰が、どの入口で、何をして、何が見え、次に何を判断できるかを最初から最後まで書いてください。
+      description: 関係するSC番号があれば示し、誰が、何のために、どの入口で、何をして、何が見え、次に何を判断できるかを最初から最後まで書いてください。新しい目的なら「新規シナリオ」と書いてください。
     validations:
       required: true
   - type: textarea
@@ -36,6 +36,13 @@ body:
     attributes:
       label: 完了と判断できる状態
       description: 何を観測できれば、この困りごとが解消したと言えるかを書いてください。
+    validations:
+      required: true
+  - type: textarea
+    id: current_view
+    attributes:
+      label: 更新する現在像
+      description: requirementsのシナリオ・要求・受入基準と、systemの全体構造・シーケンス・データ構造のうち、変わるものを書いてください。変わらないものは理由を書いてください。
     validations:
       required: true
   - type: textarea
