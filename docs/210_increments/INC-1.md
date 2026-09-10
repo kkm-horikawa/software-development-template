@@ -20,8 +20,8 @@
 
 固定した識別子と時刻でHTTP入口を実行し、正常な作業名には応答状態201と開始結果、空の作業名には応答状態422と理由が返ることを確認する。
 
-- 実行物: `backend/worklog-api/tests/acceptance/sc_001/test_http_start_activity.py::test_sc001_ex01_http_returns_started_activity`
-- 実行物: `backend/worklog-api/tests/acceptance/sc_001/test_http_start_activity.py::test_sc001_ex03_http_rejects_empty_title`
+- 実行物: `backend/worklog-api/tests/acceptance/sc_001/test_http_start_activity.py::test_http_start_activity`
+- 実行物: `backend/worklog-api/tests/acceptance/sc_001/test_http_start_activity.py::test_http_start_activity`
 
 ### SPEC-1-02: GoのCLIで作業開始の流れを実行できる [AC-SC001-01] [AC-SC001-02]
 
