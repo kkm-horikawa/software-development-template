@@ -1,8 +1,8 @@
 # INC-1 HTTPから作業を始める
 
 対応Issue: #1
-対応シナリオ: SC-001、SC-002
-対応要求: REQ-001、REQ-002、AC-001、AC-002
+対応シナリオ: SC-001
+対応要求: REQ-001、AC-001、AC-002
 
 > 作業記録アプリのサンプル増分です。新しい製品では最初のIssueへ着手する前に削除してください。
 
@@ -20,7 +20,7 @@
 
 固定した識別子と時刻、使い捨てのSQLiteでHTTP入口を実行し、応答状態201、応答内容、保存された一件が一致することを確認する。実在するテスト名は `test_st_1_01_http_entry_starts_and_saves_activity`。
 
-### SPEC-1-02: GoのCLIで作業開始の流れを実行できる [AC-001]
+### SPEC-1-02: GoのCLIで作業開始の流れを実行できる [AC-002]
 
 GoのCLIへ `start "設計を書く"` を渡すと、作業開始の利用手順へ渡し、返された結果を `開始: 設計を書く` と表示する。
 
@@ -68,4 +68,4 @@ Goの Entry.Run、StartWork.Run、ActivityGateway.Start も同じ粒度の段で
 
 ## 現在像の更新先
 
-`110_requirements` のSC-001、SC-002、REQ-001、REQ-002、AC-001、AC-002と、`150_system` の全体構造、二つのシーケンス、データの構造を更新する。
+`110_requirements` のSC-001、REQ-001、AC-001、AC-002と、`150_system` の全体構造、SC-001にあるHTTPとGo CLIの入口別シーケンス、データの構造を更新する。

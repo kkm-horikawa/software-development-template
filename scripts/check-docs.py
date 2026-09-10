@@ -22,9 +22,11 @@ REQUIRED_FILES = (
     "docs/040_completion.md",
     "docs/110_requirements/README.md",
     "docs/110_requirements/01-背景と課題.md",
-    "docs/110_requirements/02-利用者とシナリオ.md",
+    "docs/110_requirements/02-利用者.md",
     "docs/110_requirements/03-要求.md",
     "docs/110_requirements/04-受入基準.md",
+    "docs/110_requirements/シナリオ/README.md",
+    "docs/110_requirements/シナリオ/_template.md",
     "docs/150_system/README.md",
     "docs/150_system/全体構造.md",
     "docs/150_system/データの構造.md",
@@ -104,6 +106,16 @@ def orphan_sequences() -> list[str]:
     return missing
 
 
+def unlisted_scenarios() -> list[str]:
+    scenarios = ROOT / "docs/110_requirements/シナリオ"
+    index = (scenarios / "README.md").read_text(encoding="utf-8")
+    return [
+        str(scenario.relative_to(ROOT))
+        for scenario in sorted(scenarios.glob("SC-*.md"))
+        if scenario.name not in index
+    ]
+
+
 def main() -> int:
     failures = [
         *(f"必要なファイルがありません: {name}" for name in missing_required_files()),
@@ -119,6 +131,10 @@ def main() -> int:
         *(
             f"対応する要求シナリオが無いシーケンスです: {sequence}"
             for sequence in orphan_sequences()
+        ),
+        *(
+            f"シナリオ一覧から参照されていません: {scenario}"
+            for scenario in unlisted_scenarios()
         ),
     ]
     if failures:
